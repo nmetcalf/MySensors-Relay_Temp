@@ -1,32 +1,11 @@
 /**2.20/**
-   The MySensors Arduino library handles the wireless radio link and protocol
-   between your home built sensors/actuators and HA controller of choice.
-   The sensors forms a self healing radio network with optional repeaters. Each
-   repeater and gateway builds a routing tables in EEPROM which keeps track of the
-   network topology allowing messages to be routed to nodes.
-
-   Created by Henrik Ekblad <henrik.ekblad@mysensors.org>
-   Copyright (C) 2013-2015 Sensnology AB
-   Full contributor list: https://github.com/mysensors/Arduino/graphs/contributors
-
-   Documentation: http://www.mysensors.org
-   Support Forum: http://forum.mysensors.org
-
-   This program is free software; you can redistribute it and/or
-   modify it under the terms of the GNU General Public License
-   version 2 as published by the Free Software Foundation.
-
- *******************************
-
    REVISION HISTORY
-   Version 1.0 - Henrik Ekblad
+   Version 1.0 - Nathan Metcalf
 
-   DESCRIPTION
-   Example sketch showing how to control physical relays.
-   This example will remember relay state after power failure.
-   http://www.mysensors.org/build/relay
+   Battery Relay with Temp.
+
 */
-#define MY_NODE_ID 203
+#define MY_NODE_ID 204
 
 // Enable debug prints to serial monitor
 #define MY_DEBUG
@@ -34,8 +13,8 @@
 // Set blinking period (in milliseconds)
 #define MY_DEFAULT_LED_BLINK_PERIOD 300
 
-//#define MY_DEFAULT_TX_LED_PIN 3
-//#define MY_DEFAULT_RX_LED_PIN 2
+#define MY_DEFAULT_TX_LED_PIN 3
+#define MY_DEFAULT_RX_LED_PIN 2
 
 // Enable and select radio type attached
 #define MY_RADIO_NRF24
@@ -46,20 +25,20 @@
 #define MY_RF24_PA_LEVEL RF24_PA_HIGH
 
 // Enable repeater functionality for this node
-#define MY_REPEATER_FEATURE
+//#define MY_REPEATER_FEATURE
 
 #include <SPI.h>
 #include <MySensors.h>
 #include <DHT.h>
 
-#define RELAY_PIN 2  // Arduino Digital I/O pin number for first relay (second on pin+1 etc)
-#define NUMBER_OF_RELAYS 4 // Total number of attached relays
+#define RELAY_PIN 4  // Arduino Digital I/O pin number for first relay (second on pin+1 etc)
+#define NUMBER_OF_RELAYS 0 // Total number of attached relays
 #define RELAY_ON 0  // GPIO value to write to turn on attached relay
 #define RELAY_OFF 1 // GPIO value to write to turn off attached relay
 
 // DHT11 STUFF
 // Set this to the pin you connected the DHT's data pin to
-#define DHT_DATA_PIN 7
+#define DHT_DATA_PIN 8
 
 // Set this offset if the sensor has a permanent small offset to the real temperatures
 #define SENSOR_TEMP_OFFSET 0
@@ -74,8 +53,9 @@ static const uint64_t UPDATE_INTERVAL = 60000;
 // i.e. the sensor would force sending an update every UPDATE_INTERVAL*FORCE_UPDATE_N_READS [ms]
 static const uint8_t FORCE_UPDATE_N_READS = 10;
 
-#define CHILD_ID_HUM 0
-#define CHILD_ID_TEMP 1
+#define CHILD_ID_HUM 5
+#define CHILD_ID_TEMP 6
+#define CHILD_ID_VOLT 7
 
 float lastTemp;
 float lastHum;
@@ -85,9 +65,16 @@ bool metric = true;
 
 MyMessage msgHum(CHILD_ID_HUM, V_HUM);
 MyMessage msgTemp(CHILD_ID_TEMP, V_TEMP);
+MyMessage msgBatteryVolt(CHILD_ID_VOLT, V_VOLTAGE);
 DHT dht;
 
 // END DHT11
+
+// Voltage Devider
+int BATTERY_SENSE_PIN = A0;  // select the input pin for the battery sense point
+int oldBatteryPcnt = 0;
+float oldBatteryVolt = 0;
+// End Voltage
 
 void before()
 {
@@ -113,7 +100,7 @@ void setup()
 void presentation()
 {
   // Send the sketch version information to the gateway and Controller
-  sendSketchInfo("Relay & Temp", "1.1");
+  sendSketchInfo("Relay,Temp,Volt", "1.1");
 
   for (int sensor = 1, pin = RELAY_PIN; sensor <= NUMBER_OF_RELAYS; sensor++, pin++) {
     // Register all sensors to gw (they will be created as child devices)
@@ -122,7 +109,7 @@ void presentation()
   // Register all sensors to gw (they will be created as child devices)
   present(CHILD_ID_HUM, S_HUM);
   present(CHILD_ID_TEMP, S_TEMP);
-
+  present( CHILD_ID_VOLT, S_MULTIMETER );
   metric = getControllerConfig().isMetric;
   
 }
@@ -130,6 +117,40 @@ void presentation()
 
 void loop()
 {
+
+  // 1M, 100K divider across battery and using internal ADC ref of 1.1V
+  // Sense point is bypassed with 0.1 uF cap to reduce noise at that point
+  // ((1e6+470e3)/470e3)*1.1 = Vmax = 3.44 Volts
+  // 3.44/1023 = Volts per bit = 0.003363075
+
+  float batteryVolt = getBatteryVoltage();
+  int batteryPcnt = getBatteryPercentage();
+
+  #ifdef MY_DEBUG
+  Serial.print("Battery Voltage: ");
+  Serial.print(batteryVolt);
+  Serial.println(" V");
+
+  Serial.print("Battery percent: ");
+  Serial.print(batteryPcnt);
+  Serial.println(" %");
+  #endif
+
+  if (oldBatteryVolt != batteryVolt) {
+      // Power up radio after sleep
+      send(msgBatteryVolt.set(batteryVolt, 3));      
+      oldBatteryVolt = batteryVolt;
+  }
+
+  delay(10);
+
+  if (oldBatteryPcnt != batteryPcnt) {
+      // Power up radio after sleep
+      sendBatteryLevel(batteryPcnt);
+      
+      oldBatteryPcnt = batteryPcnt;
+  }
+    
   // Force reading sensor, so it works also after sleep()
   dht.readSensor(true);
 
@@ -149,13 +170,15 @@ void loop()
     send(msgTemp.set(temperature, 1));
 
     #ifdef MY_DEBUG
-    Serial.print("T: ");
+    Serial.print("Temperature: ");
     Serial.println(temperature);
     #endif
   } else {
     // Increase no update counter if the temperature stayed the same
     nNoUpdatesTemp++;
   }
+
+delay(10);
 
   // Get humidity from DHT library
   float humidity = dht.getHumidity();
@@ -169,7 +192,7 @@ void loop()
     send(msgHum.set(humidity, 1));
 
     #ifdef MY_DEBUG
-    Serial.print("H: ");
+    Serial.print("Humidity: ");
     Serial.println(humidity);
     #endif
   } else {
@@ -195,5 +218,25 @@ void receive(const MyMessage &message)
     Serial.print(", New status: ");
     Serial.println(message.getBool());
   }
+}
+
+float getBatteryVoltage() {
+
+  
+  // get the battery Voltage
+  float sensorValue = analogRead(BATTERY_SENSE_PIN);
+ 
+  float batteryVoltage = (((sensorValue * 5.00) / 1024) * 11.252);
+ 
+  return batteryVoltage;
+}
+
+int getBatteryPercentage() {
+  float batteryVoltage = getBatteryVoltage();
+  int VccMin = 2.80;
+  int VccMax = 4.25;
+  
+  int batteryPcnt = constrain(map(batteryVoltage, VccMin, VccMax, 0, 100),0,100); // and map to the 0-100% range
+  return batteryPcnt;
 }
 

@@ -5,7 +5,7 @@
    Battery Relay with Temp.
 
 */
-#define MY_NODE_ID 204
+#define MY_NODE_ID 210
 
 // Enable debug prints to serial monitor
 #define MY_DEBUG
@@ -25,20 +25,20 @@
 #define MY_RF24_PA_LEVEL RF24_PA_HIGH
 
 // Enable repeater functionality for this node
-//#define MY_REPEATER_FEATURE
+#define MY_REPEATER_FEATURE
 
 #include <SPI.h>
 #include <MySensors.h>
 #include <DHT.h>
 
-#define RELAY_PIN 4  // Arduino Digital I/O pin number for first relay (second on pin+1 etc)
-#define NUMBER_OF_RELAYS 0 // Total number of attached relays
+#define RELAY_PIN 5  // Arduino Digital I/O pin number for first relay (second on pin+1 etc)
+#define NUMBER_OF_RELAYS 3 // Total number of attached relays
 #define RELAY_ON 0  // GPIO value to write to turn on attached relay
 #define RELAY_OFF 1 // GPIO value to write to turn off attached relay
 
 // DHT11 STUFF
 // Set this to the pin you connected the DHT's data pin to
-#define DHT_DATA_PIN 8
+#define DHT_DATA_PIN 4
 
 // Set this offset if the sensor has a permanent small offset to the real temperatures
 #define SENSOR_TEMP_OFFSET 0
@@ -100,7 +100,7 @@ void setup()
 void presentation()
 {
   // Send the sketch version information to the gateway and Controller
-  sendSketchInfo("Relay,Temp,Volt", "1.1");
+  sendSketchInfo("NDM.Guru Office", "1.5");
 
   for (int sensor = 1, pin = RELAY_PIN; sensor <= NUMBER_OF_RELAYS; sensor++, pin++) {
     // Register all sensors to gw (they will be created as child devices)

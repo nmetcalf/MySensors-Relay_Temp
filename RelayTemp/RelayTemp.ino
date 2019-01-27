@@ -5,7 +5,7 @@
    Battery Relay with Temp.
 
 */
-#define MY_NODE_ID 210
+#define MY_NODE_ID 203
 
 // Enable debug prints to serial monitor
 #define MY_DEBUG
@@ -13,8 +13,8 @@
 // Set blinking period (in milliseconds)
 #define MY_DEFAULT_LED_BLINK_PERIOD 300
 
-#define MY_DEFAULT_TX_LED_PIN 3
-#define MY_DEFAULT_RX_LED_PIN 2
+//#define MY_DEFAULT_TX_LED_PIN 3
+//#define MY_DEFAULT_RX_LED_PIN 2
 
 // Enable and select radio type attached
 #define MY_RADIO_NRF24
@@ -31,14 +31,14 @@
 #include <MySensors.h>
 #include <DHT.h>
 
-#define RELAY_PIN 5  // Arduino Digital I/O pin number for first relay (second on pin+1 etc)
-#define NUMBER_OF_RELAYS 3 // Total number of attached relays
+#define RELAY_PIN 2  // Arduino Digital I/O pin number for first relay (second on pin+1 etc)
+#define NUMBER_OF_RELAYS 4 // Total number of attached relays
 #define RELAY_ON 0  // GPIO value to write to turn on attached relay
 #define RELAY_OFF 1 // GPIO value to write to turn off attached relay
 
 // DHT11 STUFF
 // Set this to the pin you connected the DHT's data pin to
-#define DHT_DATA_PIN 4
+#define DHT_DATA_PIN 7
 
 // Set this offset if the sensor has a permanent small offset to the real temperatures
 #define SENSOR_TEMP_OFFSET 0
@@ -100,7 +100,7 @@ void setup()
 void presentation()
 {
   // Send the sketch version information to the gateway and Controller
-  sendSketchInfo("NDM.Guru Office", "1.5");
+  sendSketchInfo("NDM.Guru Garden Back", "1.5");
 
   for (int sensor = 1, pin = RELAY_PIN; sensor <= NUMBER_OF_RELAYS; sensor++, pin++) {
     // Register all sensors to gw (they will be created as child devices)
@@ -239,4 +239,3 @@ int getBatteryPercentage() {
   int batteryPcnt = constrain(map(batteryVoltage, VccMin, VccMax, 0, 100),0,100); // and map to the 0-100% range
   return batteryPcnt;
 }
-
